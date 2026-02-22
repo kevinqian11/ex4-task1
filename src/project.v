@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Your Name
+ * Copyright (c) 2026 Kevin Qian
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -49,55 +49,31 @@ endmodule: MagComp
 
 // Finds the range between the max and min of a series of numbers
 module RangeFinder
-  (input  wire [7:0] ui_in,    // Dedicated inputs
-  output wire [7:0] uo_out,   // Dedicated outputs
-  input  wire [7:0] uio_in,   // IOs: Input path
-  output wire [7:0] uio_out,  // IOs: Output path
-  output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
-  input  wire       ena,      // always 1 when the design is powered, so you can ignore it
-  input  wire       clk,      // clock
-  input  wire       rst_n     // reset_n - low to reset
-  );
-    
-  logic [7:0] data_in;
-  logic clock, reset;
-  logic go, finish;
-  logic [7:0] range;
-  logic error;
-
-  assign data_in = ui_in;
-  assign clock = clk;
-  assign reset = ~rst_n;
-  assign go = uio_in[1];
-  assign finish = uio_in[2];
-  assign uo_out = range;
-  assign uio_out[0] = error;
-
-  // All output pins must be assigned. If not used, assign to 0.
-  assign uio_out[7:1] = 0;
-  assign uio_oe = 8'b1;
-
-  // List all unused inputs to prevent warnings
-  wire _unused = &{ena, 1'b0};
+  #(parameter WIDTH=16)
+  (input  logic [WIDTH-1:0] data_in,
+  input  logic             clock, reset,
+  input  logic             go, finish,
+  output logic [WIDTH-1:0] range,
+  output logic             error);
 
 // Put your code here
   logic minEn, maxEn, minClear, maxClear;
-  logic [7:0] min, max;
+  logic [WIDTH-1:0] min, max;
 
   // New Minimum/Maximum Check
-  MagComp #(8) minComp(.A(data_in), .B(min), .AltB(minEn), .AeqB(),
+  MagComp #(WIDTH) minComp(.A(data_in), .B(min), .AltB(minEn), .AeqB(),
     .AgtB());
-  MagComp #(8) maxComp(.A(data_in), .B(max), .AltB(), .AeqB(),
+  MagComp #(WIDTH) maxComp(.A(data_in), .B(max), .AltB(), .AeqB(),
     .AgtB(maxEn));
   
   // Minimum and Maximum Values
-  Register #(8) minReg(.D(data_in), .en(minEn | minClear), .clear(),
+  Register #(WIDTH) minReg(.D(data_in), .en(minEn | minClear), .clear(),
     .clock(clock), .Q(min));
-  Register #(8) maxReg(.D(data_in), .en(maxEn), .clear(maxClear),
+  Register #(WIDTH) maxReg(.D(data_in), .en(maxEn), .clear(maxClear),
     .clock(clock), .Q(max));
 
   // Calculate Range
-  Subtracter #(8) rangeSub(.A(max), .B(min), .bin(1'b0), .diff(range),
+  Subtracter #(WIDTH) rangeSub(.A(max), .B(min), .bin(1'b0), .diff(range),
     .bout());
 
   // FSM States
@@ -160,3 +136,27 @@ module RangeFinder
       cur_state <= n_state;
 
 endmodule: RangeFinder
+
+module tt_um_example (
+    input  wire [7:0] ui_in,    // Dedicated inputs
+    output wire [7:0] uo_out,   // Dedicated outputs
+    input  wire [7:0] uio_in,   // IOs: Input path
+    output wire [7:0] uio_out,  // IOs: Output path
+    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
+    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
+    input  wire       clk,      // clock
+    input  wire       rst_n     // reset_n - low to reset
+);
+
+  // All output pins must be assigned. If not used, assign to 0.
+  assign uio_out[7:1] = 0;
+  assign uio_oe = 8'b1;
+
+  // List all unused inputs to prevent warnings
+  wire _unused = &{ena, clk, rst_n, uio_in[0], uio_in[3], uio_in[4], uio_in[5],
+    uio_in[6], uio_in[7], 1'b0};
+
+  RangeFinder #(8) rf(.data_in(ui_in), .clock(clk), .reset(~rst_n), .go(uio_in[1]),
+    .finish(uio_in[2]), .range(uo_out), .error(uio_out[0]));
+
+endmodule
